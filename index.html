@@ -10,8 +10,9 @@
 <style>
 :root{--font-head:"Playfair Display",Georgia,serif;--font-body:Calibri,Carlito,"Segoe UI",Arial,sans-serif;--blue:#19538f;--red:#d4222d;--silver:#b9bcc2;--paper:#fdfcf9;--ink:#1b2a41;--bg:#0e2440}
 *{box-sizing:border-box;margin:0}
-body{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:14px;background:radial-gradient(circle at 50% 25%,#1f4a7c,var(--bg) 70%);font-family:var(--font-body);color:var(--ink);overflow-x:hidden}
-.stage{perspective:3000px;width:max(70vw,min(94vw,900px));position:relative;aspect-ratio:2/1.4142;transition:height .8s ease}
+html,body{height:100%}
+body{min-height:100vh;min-height:100dvh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:calc(14px + env(safe-area-inset-top,0px)) calc(14px + env(safe-area-inset-right,0px)) calc(14px + env(safe-area-inset-bottom,0px)) calc(14px + env(safe-area-inset-left,0px));background:radial-gradient(circle at 50% 25%,#1f4a7c,var(--bg) 70%);font-family:var(--font-body);color:var(--ink);overflow-x:hidden}
+.stage{perspective:3000px;width:94vw;flex:none;position:relative;aspect-ratio:2/1.4142;transition:height .8s ease}
 .book{position:absolute;top:50%;left:0;width:100%;aspect-ratio:2/1.4142;transform:translateY(-50%);transform-style:preserve-3d;transition:transform .8s ease}
 .sheet{position:absolute;top:0;left:50%;width:50%;height:100%;transform-origin:left center;transform-style:preserve-3d;transition:transform .9s cubic-bezier(.5,.1,.2,1);cursor:pointer}
 .sheet.flipped{transform:rotateY(-180deg)}
@@ -46,9 +47,12 @@ figcaption b{display:block;font-size:1.95cqw;letter-spacing:.12em;text-transform
 .div i{display:block;width:14cqw;height:.8cqw;background:var(--red);margin:3cqw auto}
 .div h2{font-size:8cqw;color:var(--blue)}
 .div p{font-size:3cqw;letter-spacing:.3em;text-transform:uppercase;color:#6b7686}
-.controls{margin-top:5vh;display:flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:14px;color:#dfe7f2;font-size:14px}
+.controls{flex:none;display:flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:14px;color:#dfe7f2;font-size:14px}
 button{background:#fff;color:var(--blue);border:0;border-radius:20px;padding:9px 18px;font:inherit;font-weight:bold;cursor:pointer;border-bottom:3px solid var(--red)}
 button:disabled{opacity:.4;cursor:default}
+button{min-height:40px;touch-action:manipulation}
+#info{min-width:110px;text-align:center}
+@media(max-width:600px){.controls{font-size:13px;gap:8px}button{padding:10px 14px}}
 button:focus-visible{outline:3px solid #fff}
 h1,h2,.cover .yr{font-family:var(--font-head)}
 figcaption{font-weight:400}
@@ -109,9 +113,9 @@ const endc=`<div class="cover end"><img class="fj" src="${LOGO}" alt="Logo"><h1>
 const divider=m=>`<div class="div"><img src="${LOGO}" alt="" style="width:14cqw;height:14cqw;margin-bottom:6cqw"><p>Dokumentasi</p><i></i><h2>${esc(m)}</h2><p style="margin-top:3cqw">${esc(YEAR)}</p></div>`;
 const face=(o,i,side)=>`<div class="face ${side}">${o.html}${o.bare?'':`<div class="foot"><span>${i}</span><span class="my">${o.month?esc(o.month)+' '+esc(YEAR):''}</span></div>`}</div>`;
 const stage=document.querySelector('.stage'),book=document.getElementById('book');
-let N=0,page=0,els=[];
+let N=0,page=0,half=0,els=[];
 function build(pgs){
-  book.innerHTML='';els=[];page=0;
+  book.innerHTML='';els=[];page=0;half=0;
   const all=[{html:cover,bare:1}];
   let lastM='';
   pgs.forEach(p=>{
@@ -124,7 +128,7 @@ function build(pgs){
   for(let i=0;i<N;i++){
     const s=document.createElement('div');s.className='sheet';
     s.innerHTML=face(all[2*i],2*i,'front')+face(all[2*i+1],2*i+1,'back');
-    s.addEventListener('click',()=>{i===page?nextP():i===page-1&&prevP()});
+    s.addEventListener('click',()=>{if(single())return;i===page?nextP():i===page-1&&prevP()});
     book.appendChild(s);els.push(s);
   }
   z();render();
@@ -171,20 +175,32 @@ async function loadPhotos(){
   info.textContent=`${total} foto · ${items.length} bulan · ${pgs.length} halaman foto`;
 }
 const z=()=>els.forEach((s,i)=>s.style.zIndex=i<page?i+1:N-i);
+const single=()=>innerWidth<600&&innerWidth<innerHeight;
 function render(){
   els.forEach((s,i)=>s.classList.toggle('flipped',i<page));
-  const W=stage.clientWidth,H=W*1.4142/2,availH=innerHeight-150;
+  const cs=getComputedStyle(document.body);
+  const padX=parseFloat(cs.paddingLeft)+parseFloat(cs.paddingRight);
+  const padY=parseFloat(cs.paddingTop)+parseFloat(cs.paddingBottom);
+  const availW=Math.min(innerWidth-padX,1600);
+  const availH=innerHeight-padY-controls.offsetHeight-16;
+  const sg=single(),R=1.4142/2;
+  /* Lebar buku disesuaikan agar muat di lebar DAN tinggi layar */
+  const W=sg?availW:Math.max(240,Math.min(availW,availH/R));
+  const H=W*R;
   let k=1,tx=0;
-  if(page===0||page===N){k=Math.max(1,Math.min(2,availH/H));tx=(page===0?-25:25)*k}
+  const zoom=Math.max(1,Math.min(2,availH/H));
+  if(page===0||page===N){k=zoom;tx=(page===0?-25:25)*k}
+  else if(sg){k=zoom;tx=(half?-25:25)*k}
+  stage.style.width=W+'px';
   stage.style.height=H*k+'px';
   book.style.transform=`translate(${tx}%,-50%) scale(${k})`;
-  prev.disabled=page===0;next.disabled=page===N;
-  info.textContent=page===0?'Sampul':page===N?'Sampul belakang':`Hal. ${2*page-1} – ${2*page}`;
+  prev.disabled=page===0&&!half;next.disabled=page===N;
+  info.textContent=page===0?'Sampul':page===N?'Sampul belakang':sg?`Hal. ${2*page-1+half}`:`Hal. ${2*page-1} – ${2*page}`;
 }
 function step(to){els[to>page?page:to].style.zIndex=100;page=to;render();clearTimeout(step.t);step.t=setTimeout(z,900)}
-function nextP(){if(page<N)step(page+1)}
-function prevP(){if(page>0)step(page-1)}
-const prev=document.getElementById('prev'),next=document.getElementById('next'),info=document.getElementById('info');
+function nextP(){if(single()&&page>0&&page<N&&half===0){half=1;render();return}if(page<N){half=0;step(page+1)}}
+function prevP(){if(single()&&page>0&&page<N&&half===1){half=0;render();return}if(page>0){half=1;step(page-1)}}
+const controls=document.querySelector('.controls'),prev=document.getElementById('prev'),next=document.getElementById('next'),info=document.getElementById('info');
 next.onclick=nextP;prev.onclick=prevP;
 document.addEventListener('keydown',e=>{if(e.key==='ArrowRight')nextP();if(e.key==='ArrowLeft')prevP()});
 let sx=null;
