@@ -97,11 +97,6 @@ const PARTNERS=[
   {src:encodeURI('Logo Fluivac.png'),alt:'Fluivac'}
 ];
 const BULAN=['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
-/* Halaman contoh (kotak foto + tanggal) yang tampil selama foto belum terdeteksi */
-const pages=Array.from({length:50},(_,i)=>{
-  const m=Math.floor(i*12/50),n=i-Math.ceil(m*50/12);
-  return {month:BULAN[m],photos:Array.from({length:12},(_,k)=>({src:'',date:(1+((n*12+k)*3)%28)+' '+BULAN[m]+' '+YEAR,cap:''}))};
-});
 const esc=s=>String(s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
 const CO=`<span class="co">${esc(COMPANY)}</span>`;
 function fig(p){
@@ -184,26 +179,39 @@ async function getManifest(){
     return {base:pd?pd.name:'',dirs};
   }catch(e){note=e.message||'gagal membaca GitHub';return null}
 }
+/* Susun semua halaman: 12 bulan, tiap bulan punya slot untuk SETIAP tanggal (1..akhir bulan).
+   Foto yang tanggalnya cocok (dari nama file) masuk ke slot tanggal itu; tanggal tanpa foto tetap kotak kosong. */
+const DIM=m=>new Date(+YEAR,m+1,0).getDate();
+function makePages(byMonth){
+  const pgs=[];
+  for(let mi=0;mi<12;mi++){
+    const byDay={},extra=[],slots=[];
+    (byMonth[mi]||[]).slice().sort((a,b)=>dkey(a.name)-dkey(b.name)||nat(a.name,b.name)).forEach(f=>{
+      const t=parseDate(f.name);
+      if(t&&t.m===mi+1&&t.y===+YEAR)(byDay[t.d]=byDay[t.d]||[]).push(f);else extra.push(f);
+    });
+    for(let d=1;d<=DIM(mi);d++){
+      const label=d+' '+BULAN[mi]+' '+YEAR;
+      if(byDay[d])byDay[d].forEach(f=>slots.push({src:f.src,date:label,cap:f.name}));
+      else slots.push({src:'',date:label,cap:''});
+    }
+    /* foto di folder bulan ini yang tanggalnya tidak ada / tidak cocok: ditaruh setelah tanggal terakhir */
+    extra.forEach(f=>{const t=parseDate(f.name);slots.push({src:f.src,date:t?t.d+' '+BULAN[t.m-1]+' '+t.y:BULAN[mi]+' '+YEAR,cap:f.name})});
+    while(slots.length%12)slots.push({src:'',date:'',cap:''});
+    for(let i=0;i<slots.length;i+=12)pgs.push({month:BULAN[mi],photos:slots.slice(i,i+12)});
+  }
+  return pgs;
+}
 async function loadPhotos(){
   const man=await getManifest();
   if(!man){render();return}
-  const items=Object.keys(man.dirs).map(d=>[monthIdx(d),d]).filter(x=>x[0]>=0);
-  if(!items.length){note='tidak ada folder bulan yang cocok';render();return}
-  items.sort((a,b)=>a[0]-b[0]);
-  const pgs=[];
-  items.forEach(([mi,dirName])=>{
-    const list=[...man.dirs[dirName]].filter(n=>IMG_RE.test(n)).sort((a,b)=>dkey(a)-dkey(b)||nat(a,b));
-    for(let i=0;i<list.length;i+=12){
-      const ph=list.slice(i,i+12).map(name=>{
-        const t=parseDate(name);
-        return {src:encodeURI((man.base?man.base+'/':'')+dirName+'/'+name),date:t?t.d+' '+BULAN[t.m-1]+' '+t.y:BULAN[mi]+' '+YEAR,cap:name};
-      });
-      while(ph.length<12)ph.push({src:'',date:'',cap:''}); /* slot kosong tetap tampil, supaya tata letak 12 slot/halaman konsisten */
-      pgs.push({month:BULAN[mi],photos:ph});
-    }
+  const byMonth={};
+  Object.keys(man.dirs).forEach(dirName=>{
+    const mi=monthIdx(dirName);if(mi<0)return;
+    (byMonth[mi]=byMonth[mi]||[]).push(...man.dirs[dirName].filter(n=>IMG_RE.test(n)).map(name=>({name,src:encodeURI((man.base?man.base+'/':'')+dirName+'/'+name)})));
   });
   hasPhotos=true;
-  build(pgs);
+  build(makePages(byMonth));
 }
 const z=()=>els.forEach((s,i)=>s.style.zIndex=i<page?i+1:N-i);
 const single=()=>innerWidth<600&&innerWidth<innerHeight;
@@ -238,7 +246,7 @@ let sx=null;
 book.addEventListener('touchstart',e=>sx=e.touches[0].clientX,{passive:true});
 book.addEventListener('touchend',e=>{if(sx===null)return;const d=e.changedTouches[0].clientX-sx;if(Math.abs(d)>50)d<0?nextP():prevP();sx=null});
 addEventListener('resize',render);
-build(pages);loadPhotos();
+build(makePages({}));loadPhotos();
 </script>
 </body>
 </html>
