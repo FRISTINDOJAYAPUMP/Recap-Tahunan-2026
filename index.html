@@ -89,12 +89,12 @@ figcaption{font-weight:400}
 <script>
 const COMPANY='PT. FRISTINDO JAYA PUMP',YEAR='2026',TITLE='Album Dokumentasi Tahunan';
 const ADDRESS='Alamat perusahaan Anda',PHONE='Telepon: 021-0000-0000',EMAIL='info@perusahaan.com';
-/* Taruh gambar di folder assets/ (atau ganti dengan data base64 milik Anda) */
-const LOGO='assets/logo.png';
+/* Logo ada di folder yang sama dengan index.html (nama file harus persis sama, termasuk huruf besar/kecil) */
+const LOGO=encodeURI('FJ Logo.png');
 const PARTNERS=[
-  {src:'assets/fristam.png',alt:'Fristam'},
-  {src:'assets/fristam-experts.png',alt:'Fristam Mixing & Blending Experts'},
-  {src:'assets/fluivac.png',alt:'Fluivac'}
+  {src:encodeURI('Fristam Logo RGB HD.PNG'),alt:'Fristam'},
+  {src:encodeURI('Logo Fristam Hijau.png'),alt:'Fristam Mixing & Blending Experts'},
+  {src:encodeURI('Logo Fluivac.png'),alt:'Fluivac'}
 ];
 const BULAN=['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
 /* Halaman contoh (kotak foto + tanggal) yang tampil selama foto belum terdeteksi */
