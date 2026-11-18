@@ -149,39 +149,57 @@ function parseDate(name){
   return null;
 }
 const dkey=n=>{const t=parseDate(n);return t?t.y*10000+t.m*100+t.d:Infinity};
+/* Jika situs memakai domain sendiri (bukan xxx.github.io), isi manual: const GH={owner:'namaakun',repo:'namarepo'} */
+const GH={owner:'',repo:''};
+const MONTH_EN=['january','february','march','april','may','june','july','august','september','october','november','december'];
+const monthIdx=n=>{n=n.toLowerCase();let i=BULAN.findIndex(m=>n.includes(m.toLowerCase()));return i>=0?i:MONTH_EN.findIndex(m=>n.includes(m))};
+let note='';
+async function ghJson(u){
+  const r=await fetch(u);
+  if(!r.ok)throw new Error(r.status===403?'batas API GitHub tercapai, coba lagi nanti':r.status===404?'repository tidak ditemukan (cek GH owner/repo)':'GitHub API error '+r.status);
+  return r.json();
+}
 async function getManifest(){
-  try{const r=await fetch(PHOTO_DIR+'/manifest.json',{cache:'no-cache'});if(r.ok)return await r.json()}catch(e){}
-  const host=location.hostname;
-  if(!host.endsWith('.github.io'))return null;
-  const owner=host.split('.')[0],repo=location.pathname.split('/').filter(Boolean)[0]||host;
+  try{const r=await fetch(PHOTO_DIR+'/manifest.json',{cache:'no-cache'});if(r.ok)return {base:PHOTO_DIR,dirs:await r.json()}}catch(e){}
+  let owner=GH.owner,repo=GH.repo;
+  if(!owner){
+    const host=location.hostname;
+    if(!host.endsWith('.github.io')){note='alamat ini bukan github.io, isi GH di kode';return null}
+    owner=host.split('.')[0];
+    const seg=location.pathname.split('/').filter(Boolean)[0];
+    repo=seg&&!/\.html?$/i.test(seg)?seg:host;
+  }
   try{
-    const top=await (await fetch(`https://api.github.com/repos/${owner}/${repo}/contents/${PHOTO_DIR}`)).json();
-    const out={};
-    await Promise.all(top.filter(x=>x.type==='dir').map(async d=>{
-      const f=await (await fetch(d.url)).json();
+    const root=await ghJson(`https://api.github.com/repos/${owner}/${repo}/contents/`);
+    const pd=root.find(x=>x.type==='dir'&&['foto','fotos','photo','photos'].includes(x.name.toLowerCase()));
+    const folders=(pd?await ghJson(pd.url):root).filter(x=>x.type==='dir'&&monthIdx(x.name)>=0);
+    if(!folders.length){note=pd?`tidak ada folder bulan (Januari, Februari, dst.) di dalam "${pd.name}"`:'folder "foto" tidak ditemukan di repository';return null}
+    const dirs={};
+    await Promise.all(folders.map(async d=>{
+      const f=await ghJson(d.url);
       const names=f.filter(x=>x.type==='file'&&IMG_RE.test(x.name)).map(x=>x.name);
-      if(names.length)out[d.name]=names;
+      if(names.length)dirs[d.name]=names;
     }));
-    return out;
-  }catch(e){return null}
+    if(!Object.keys(dirs).length){note='folder bulan ada, tapi belum berisi gambar (jpg/png/webp)';return null}
+    return {base:pd?pd.name:'',dirs};
+  }catch(e){note=e.message||'gagal membaca GitHub';return null}
 }
 async function loadPhotos(){
   const man=await getManifest();
-  const items=[];
-  for(const dirName of Object.keys(man||{})){
-    const mi=BULAN.findIndex(m=>dirName.toLowerCase().includes(m.toLowerCase()));
-    if(mi>=0)items.push([mi,dirName]);
-  }
-  if(!items.length)return;
+  if(!man){render();return}
+  const items=Object.keys(man.dirs).map(d=>[monthIdx(d),d]).filter(x=>x[0]>=0);
+  if(!items.length){note='tidak ada folder bulan yang cocok';render();return}
   items.sort((a,b)=>a[0]-b[0]);
-  const pgs=[];let total=0;
+  const pgs=[];
   items.forEach(([mi,dirName])=>{
-    const list=[...man[dirName]].filter(n=>IMG_RE.test(n)).sort((a,b)=>dkey(a)-dkey(b)||nat(a,b));total+=list.length;
+    const list=[...man.dirs[dirName]].filter(n=>IMG_RE.test(n)).sort((a,b)=>dkey(a)-dkey(b)||nat(a,b));
     for(let i=0;i<list.length;i+=12){
-      pgs.push({month:BULAN[mi],photos:list.slice(i,i+12).map(name=>{
+      const ph=list.slice(i,i+12).map(name=>{
         const t=parseDate(name);
-        return {src:encodeURI(PHOTO_DIR+'/'+dirName+'/'+name),date:t?t.d+' '+BULAN[t.m-1]+' '+t.y:BULAN[mi]+' '+YEAR,cap:name};
-      })});
+        return {src:encodeURI((man.base?man.base+'/':'')+dirName+'/'+name),date:t?t.d+' '+BULAN[t.m-1]+' '+t.y:BULAN[mi]+' '+YEAR,cap:name};
+      });
+      while(ph.length<12)ph.push({src:'',date:'',cap:''}); /* slot kosong tetap tampil, supaya tata letak 12 slot/halaman konsisten */
+      pgs.push({month:BULAN[mi],photos:ph});
     }
   });
   hasPhotos=true;
@@ -208,7 +226,7 @@ function render(){
   stage.style.height=H*k+'px';
   book.style.transform=`translate(${tx}%,-50%) scale(${k})`;
   prev.disabled=page===0&&!half;next.disabled=page===N;
-  info.textContent=page===0?(hasPhotos?'Sampul':'Sampul · belum ada foto'):page===N?'Sampul belakang':sg?`Hal. ${2*page-1+half}`:`Hal. ${2*page-1} – ${2*page}`;
+  info.textContent=(page===0?'Sampul':page===N?'Sampul belakang':sg?`Hal. ${2*page-1+half}`:`Hal. ${2*page-1} – ${2*page}`)+(hasPhotos?'':' · foto belum terdeteksi'+(note?': '+note:''));
 }
 function step(to){els[to>page?page:to].style.zIndex=100;page=to;render();clearTimeout(step.t);step.t=setTimeout(z,900)}
 function nextP(){if(single()&&page>0&&page<N&&half===0){half=1;render();return}if(page<N){half=0;step(page+1)}}
