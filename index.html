@@ -37,7 +37,7 @@ body{min-height:100vh;min-height:100dvh;display:flex;flex-direction:column;align
 figure{display:flex;flex-direction:column;align-items:center;min-height:0;min-width:0}
 .frame{flex:1;min-height:0;aspect-ratio:1/1;align-self:center;background:#fff;padding:1.1cqw;box-shadow:0 .2cqw .6cqw rgba(20,40,80,.14);border:.15cqw solid #e3e6ea}
 .frame img,.ph{width:100%;height:100%;object-fit:cover;display:block}
-.ph{background:linear-gradient(155deg,rgba(25,83,143,.85) 0 50%,rgba(212,34,45,.85) 50% 100%);display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,.8);font-size:2.6cqw;letter-spacing:.2em;text-transform:uppercase}
+.ph{background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16'%3E%3Cpath d='M1 1h10l4 4v10H1z' fill='%23eef3fb' stroke='%238fa3bf'/%3E%3Cpath d='M2 14l4-5 3 3 2-2 3 4z' fill='%2360a64a'/%3E%3C/svg%3E") 3px 3px/12% auto no-repeat,#f5f7fa;border:1px solid #c9ced6}
 figcaption{padding-top:1cqw;font-size:2.2cqw;line-height:1.2;text-align:center}
 figcaption b{display:block;font-size:1.95cqw;letter-spacing:.12em;text-transform:uppercase;color:var(--red);font-weight:bold;margin:0}
 .foot{display:flex;align-items:center;justify-content:space-between;margin:0 7cqw;padding:2cqw 0 3.4cqw;border-top:.35cqw solid var(--red);font-size:2.4cqw;color:#6b7686;letter-spacing:.08em}
@@ -97,6 +97,7 @@ const PARTNERS=[
   {src:'assets/fluivac.png',alt:'Fluivac'}
 ];
 const BULAN=['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
+/* Halaman contoh (kotak foto + tanggal) yang tampil selama foto belum terdeteksi */
 const pages=Array.from({length:50},(_,i)=>{
   const m=Math.floor(i*12/50),n=i-Math.ceil(m*50/12);
   return {month:BULAN[m],photos:Array.from({length:12},(_,k)=>({src:'',date:(1+((n*12+k)*3)%28)+' '+BULAN[m]+' '+YEAR,cap:''}))};
@@ -104,7 +105,7 @@ const pages=Array.from({length:50},(_,i)=>{
 const esc=s=>String(s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
 const CO=`<span class="co">${esc(COMPANY)}</span>`;
 function fig(p){
-  const img=p.src?`<img src="${esc(p.src)}" alt="${esc(p.cap||'')}" loading="lazy" onerror="this.outerHTML='<div class=ph>Foto</div>'">`:'<div class="ph">Foto</div>';
+  const img=p.src?`<img src="${esc(p.src)}" alt="${esc(p.cap||'')}" loading="lazy" onerror="this.outerHTML='<div class=ph></div>'">`:'<div class="ph"></div>';
   return `<figure><div class="frame">${img}</div><figcaption><b>${esc(String(p.date||'').replace(YEAR,'').trim())}</b></figcaption></figure>`;
 }
 function body(p){return `<div class="pg"><div class="head"><img src="${LOGO}" alt="">${CO}</div><div class="photos n${p.photos.length}">${p.photos.map(fig).join('')}</div></div>`}
@@ -113,7 +114,7 @@ const endc=`<div class="cover end"><img class="fj" src="${LOGO}" alt="Logo"><h1>
 const divider=m=>`<div class="div"><img src="${LOGO}" alt="" style="width:14cqw;height:14cqw;margin-bottom:6cqw"><p>Dokumentasi</p><i></i><h2>${esc(m)}</h2><p style="margin-top:3cqw">${esc(YEAR)}</p></div>`;
 const face=(o,i,side)=>`<div class="face ${side}">${o.html}${o.bare?'':`<div class="foot"><span>${i}</span><span class="my">${o.month?esc(o.month)+' '+esc(YEAR):''}</span></div>`}</div>`;
 const stage=document.querySelector('.stage'),book=document.getElementById('book');
-let N=0,page=0,half=0,els=[];
+let N=0,page=0,half=0,els=[],hasPhotos=false;
 function build(pgs){
   book.innerHTML='';els=[];page=0;half=0;
   const all=[{html:cover,bare:1}];
@@ -136,6 +137,18 @@ function build(pgs){
 const PHOTO_DIR='foto';
 const IMG_RE=/\.(jpe?g|png|webp|gif|avif|bmp)$/i;
 const nat=(a,b)=>a.localeCompare(b,undefined,{numeric:true});
+/* Baca tanggal dari nama file, teks lain di nama file diabaikan.
+   Format utama: HARI.BULAN.TAHUN, contoh "Fristam Visit Post - 06.07.2026.png" = 6 Juli 2026
+   (pemisah boleh . - _ atau spasi). Cadangan: TAHUNBULANHARI, contoh 2026-07-06 / IMG_20260706 */
+function parseDate(name){
+  const base=name.replace(IMG_RE,'');
+  let m=base.match(/(?<!\d)(0?[1-9]|[12]\d|3[01])[.\-_ ](0?[1-9]|1[0-2])[.\-_ ]((?:19|20)\d{2})(?!\d)/);
+  if(m)return {d:+m[1],m:+m[2],y:+m[3]};
+  m=base.match(/(?<!\d)((?:19|20)\d{2})[.\-_]?(0[1-9]|1[0-2])[.\-_]?(0[1-9]|[12]\d|3[01])(?!\d)/);
+  if(m)return {d:+m[3],m:+m[2],y:+m[1]};
+  return null;
+}
+const dkey=n=>{const t=parseDate(n);return t?t.y*10000+t.m*100+t.d:Infinity};
 async function getManifest(){
   try{const r=await fetch(PHOTO_DIR+'/manifest.json',{cache:'no-cache'});if(r.ok)return await r.json()}catch(e){}
   const host=location.hostname;
@@ -159,20 +172,20 @@ async function loadPhotos(){
     const mi=BULAN.findIndex(m=>dirName.toLowerCase().includes(m.toLowerCase()));
     if(mi>=0)items.push([mi,dirName]);
   }
-  if(!items.length){info.textContent='Foto belum ditemukan di folder "'+PHOTO_DIR+'/"';return}
+  if(!items.length)return;
   items.sort((a,b)=>a[0]-b[0]);
   const pgs=[];let total=0;
   items.forEach(([mi,dirName])=>{
-    const list=[...man[dirName]].filter(n=>IMG_RE.test(n)).sort(nat);total+=list.length;
+    const list=[...man[dirName]].filter(n=>IMG_RE.test(n)).sort((a,b)=>dkey(a)-dkey(b)||nat(a,b));total+=list.length;
     for(let i=0;i<list.length;i+=12){
       pgs.push({month:BULAN[mi],photos:list.slice(i,i+12).map(name=>{
-        const d=name.match(/(?:19|20)\d{2}[-_.]?(?:0[1-9]|1[0-2])[-_.]?(0[1-9]|[12]\d|3[01])/);
-        return {src:encodeURI(PHOTO_DIR+'/'+dirName+'/'+name),date:(d?(+d[1])+' ':'')+BULAN[mi]+' '+YEAR,cap:name};
+        const t=parseDate(name);
+        return {src:encodeURI(PHOTO_DIR+'/'+dirName+'/'+name),date:t?t.d+' '+BULAN[t.m-1]+' '+t.y:BULAN[mi]+' '+YEAR,cap:name};
       })});
     }
   });
+  hasPhotos=true;
   build(pgs);
-  info.textContent=`${total} foto · ${items.length} bulan · ${pgs.length} halaman foto`;
 }
 const z=()=>els.forEach((s,i)=>s.style.zIndex=i<page?i+1:N-i);
 const single=()=>innerWidth<600&&innerWidth<innerHeight;
@@ -195,7 +208,7 @@ function render(){
   stage.style.height=H*k+'px';
   book.style.transform=`translate(${tx}%,-50%) scale(${k})`;
   prev.disabled=page===0&&!half;next.disabled=page===N;
-  info.textContent=page===0?'Sampul':page===N?'Sampul belakang':sg?`Hal. ${2*page-1+half}`:`Hal. ${2*page-1} – ${2*page}`;
+  info.textContent=page===0?(hasPhotos?'Sampul':'Sampul · belum ada foto'):page===N?'Sampul belakang':sg?`Hal. ${2*page-1+half}`:`Hal. ${2*page-1} – ${2*page}`;
 }
 function step(to){els[to>page?page:to].style.zIndex=100;page=to;render();clearTimeout(step.t);step.t=setTimeout(z,900)}
 function nextP(){if(single()&&page>0&&page<N&&half===0){half=1;render();return}if(page<N){half=0;step(page+1)}}
