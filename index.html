@@ -90,6 +90,17 @@ figcaption{font-weight:400}
 .n12 figcaption b{font-size:1.8cqw}
 .foot{margin:0 5cqw;padding:1.4cqw 0 2.4cqw}
 .front .foot{margin-left:7cqw}.back .foot{margin-right:7cqw}
+
+/* === Zoom frame: klik slot -> membesar ke tengah (berisi foto kalau ada, kosong kalau belum) === */
+.frame{cursor:zoom-in}
+.lb{position:fixed;inset:0;z-index:1000;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:rgba(5,15,30,0);-webkit-backdrop-filter:blur(0);backdrop-filter:blur(0);visibility:hidden;cursor:zoom-out;transition:background .35s,backdrop-filter .35s,visibility 0s .4s}
+.lb.on{visibility:visible;background:rgba(5,15,30,.85);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);transition:background .35s,backdrop-filter .35s}
+.lb .lbf{box-sizing:border-box;background:#fff;padding:10px;border-radius:4px;box-shadow:0 20px 60px rgba(0,0,0,.65),0 0 0 2px rgba(255,255,255,.7);transition:transform .45s cubic-bezier(.2,.8,.2,1)}
+.lb .lbf img,.lb .lbf .ph{width:100%;height:100%;display:block}
+.lb .lbf img{object-fit:contain}
+.lb .cap{color:#fff;font-family:var(--font-head);font-size:clamp(14px,2.4vw,20px);letter-spacing:.06em;opacity:0;transition:opacity .3s;min-height:1.2em}
+.lb.on .cap{opacity:1;transition-delay:.25s}
+.lb .x{position:absolute;top:calc(14px + env(safe-area-inset-top,0px));right:14px;width:42px;height:42px;padding:0;border-radius:50%;font-size:20px;line-height:1}
 </style>
 </head>
 <body>
@@ -259,6 +270,69 @@ let sx=null;
 book.addEventListener('touchstart',e=>sx=e.touches[0].clientX,{passive:true});
 book.addEventListener('touchend',e=>{if(sx===null)return;const d=e.changedTouches[0].clientX-sx;if(Math.abs(d)>50)d<0?nextP():prevP();sx=null});
 addEventListener('resize',render);
+
+/* === Zoom frame: klik slot -> membesar ke tengah ala inspect item === */
+const lb=document.createElement('div');
+lb.className='lb';
+lb.innerHTML='<button class="x" aria-label="Tutup">\u2715</button><div class="lbf"><img alt=""><div class="ph"></div></div><div class="cap"></div>';
+document.body.appendChild(lb);
+const lbf=lb.querySelector('.lbf'),lbImg=lbf.querySelector('img'),lbPh=lbf.querySelector('.ph'),lbCap=lb.querySelector('.cap');
+let lbThumb=null;
+function fly(from){ // animasi dari posisi slot ke tengah (dan sebaliknya)
+  const f=lbf.getBoundingClientRect();
+  const dx=(from.left+from.width/2)-(f.left+f.width/2);
+  const dy=(from.top+from.height/2)-(f.top+f.height/2);
+  const s=Math.min(from.width/f.width,from.height/f.height);
+  return `translate(${dx}px,${dy}px) scale(${s})`;
+}
+function openLb(frame){
+  lbThumb=frame;
+  const r=frame.getBoundingClientRect();
+  const im=frame.querySelector('img');
+  const fg=frame.closest('figure'),fc=fg&&fg.querySelector('figcaption');
+  lbCap.textContent=fc?fc.textContent.replace(/\u200b/g,'').trim():'';
+  const go=()=>{
+    let ratio=r.width/r.height;
+    if(im&&im.naturalWidth)ratio=im.naturalWidth/im.naturalHeight;
+    const w=Math.min(innerWidth*.92,innerHeight*.74*ratio),h=w/ratio;
+    lbf.style.width=w+'px';lbf.style.height=h+'px';
+    lbf.style.transition='none';
+    lbf.style.transform='none';
+    lbf.style.transform=fly(r);
+    lbf.getBoundingClientRect();           // paksa reflow
+    lb.classList.add('on');
+    lbf.style.transition='';
+    lbf.style.transform='none';
+  };
+  if(im){
+    lbImg.style.display='block';lbPh.style.display='none';
+    lbImg.src=im.currentSrc||im.src;
+    lbImg.decode?lbImg.decode().then(go,go):go();
+  }else{
+    lbImg.style.display='none';lbPh.style.display='block';lbImg.removeAttribute('src');
+    go();
+  }
+}
+function closeLb(){
+  if(!lb.classList.contains('on'))return;
+  lb.classList.remove('on');
+  if(lbThumb&&document.contains(lbThumb))lbf.style.transform=fly(lbThumb.getBoundingClientRect());
+}
+lb.addEventListener('click',closeLb);
+/* klik slot di album (berisi foto atau masih kosong) -> buka zoom, tidak ikut membalik halaman */
+book.addEventListener('click',e=>{
+  const fr=e.target.closest('.frame');
+  if(!fr)return;
+  e.stopPropagation();
+  openLb(fr);
+},true);
+/* Esc menutup; panah tidak membalik halaman saat zoom terbuka */
+window.addEventListener('keydown',e=>{
+  if(!lb.classList.contains('on'))return;
+  if(e.key==='Escape')closeLb();
+  if(e.key==='ArrowLeft'||e.key==='ArrowRight')e.stopPropagation();
+},true);
+
 build(makePages({}));loadPhotos();
 </script>
 </body>
