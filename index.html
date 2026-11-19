@@ -203,7 +203,7 @@ async function getManifest(){
     return {base:pd?pd.name:'',dirs};
   }catch(e){note=e.message||'gagal membaca GitHub';return null}
 }
-/* Susun semua halaman: 12 bulan, tiap bulan punya slot untuk SETIAP tanggal (1..akhir bulan).
+/* Susun semua halaman: 12 bulan, tiap bulan punya minimal 2 slot untuk SETIAP tanggal (1..akhir bulan).
    Foto yang tanggalnya cocok (dari nama file) masuk ke slot tanggal itu; tanggal tanpa foto tetap kotak kosong. */
 const DIM=m=>new Date(+YEAR,m+1,0).getDate();
 function makePages(byMonth){
@@ -216,8 +216,9 @@ function makePages(byMonth){
     });
     for(let d=1;d<=DIM(mi);d++){
       const label=d+' '+BULAN[mi]+' '+YEAR;
-      if(byDay[d])byDay[d].forEach(f=>slots.push({src:f.src,date:label,cap:f.name}));
-      else slots.push({src:'',date:label,cap:''});
+      const arr=byDay[d]||[];
+      arr.forEach(f=>slots.push({src:f.src,date:label,cap:f.name}));
+      for(let k=arr.length;k<2;k++)slots.push({src:'',date:label,cap:''}); /* minimal 2 slot per tanggal (2 post/hari); kalau lebih dari 2 foto, slot bertambah otomatis */
     }
     /* foto di folder bulan ini yang tanggalnya tidak ada / tidak cocok: ditaruh setelah tanggal terakhir */
     extra.forEach(f=>{const t=parseDate(f.name);slots.push({src:f.src,date:t?t.d+' '+BULAN[t.m-1]+' '+t.y:BULAN[mi]+' '+YEAR,cap:f.name})});
