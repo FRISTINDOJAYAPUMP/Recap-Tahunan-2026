@@ -56,8 +56,8 @@ button{min-height:40px;touch-action:manipulation}
 button:focus-visible{outline:3px solid #fff}
 h1,h2,.cover .yr{font-family:var(--font-head)}
 figcaption{font-weight:400}
-/* Opsional: font Handel Gothic dari file */
-@font-face{font-family:"Handel Gothic";src:url(assets/HandelGothic-Bold.otf) format("opentype");font-weight:bold;font-style:normal;font-display:swap}
+/* Font khusus tulisan "PT. FRISTINDO JAYA PUMP" (class .co), file ada di folder yang sama dengan index.html */
+@font-face{font-family:"Handel Gothic";src:url("Handel%20Gothic%20D%20Bold.otf") format("opentype");font-weight:bold;font-style:normal;font-display:swap}
 .co{font-family:"Handel Gothic","Montserrat",Arial,sans-serif;font-weight:bold;letter-spacing:.14em}
 .foot .co{font-size:2.3cqw}
 .cover{flex:1;position:relative;overflow:hidden;color:#fff;display:flex;flex-direction:column;align-items:center;text-align:center;padding:10cqw 9cqw 0 13cqw;background:linear-gradient(170deg,#164677,#0e3460 45%,#0a2748)}
@@ -158,16 +158,18 @@ function body(p){return `<div class="pg"><div class="head"><img src="${LOGO}" al
 const cover=`<div class="cover"><img class="fj" src="${LOGO}" alt="Logo"><div class="ct">${CO}<i class="ln"></i><h1>${esc(TITLE)}</h1></div><div class="yr">${esc(YEAR)}</div><div class="logos">${PARTNERS.map(q=>`<img src="${q.src}" alt="${esc(q.alt)}">`).join('<i></i>')}</div></div>`;
 const endc=`<div class="cover end"><img class="fj" src="${LOGO}" alt="Logo"><h1>Terima Kasih</h1><i class="ln"></i>${CO}<div class="contact">${esc(ADDRESS)}<br>${esc(PHONE)}<br>${esc(EMAIL)}</div></div>`;
 const divider=m=>`<div class="div"><img src="${LOGO}" alt="" style="width:14cqw;height:14cqw;margin-bottom:6cqw"><p>Dokumentasi</p><i></i><h2>${esc(m)}</h2><p style="margin-top:3cqw">${esc(YEAR)}</p></div>`;
-const face=(o,i,side)=>`<div class="face ${side}">${o.html}${o.bare?'':`<div class="foot"><span>${i}</span><span class="my">${o.month?esc(o.month)+' '+esc(YEAR):''}</span></div>`}</div>`;
+const secDivider=(m,t)=>`<div class="div"><img src="${LOGO}" alt="" style="width:14cqw;height:14cqw;margin-bottom:6cqw"><p>${esc(m)} ${esc(YEAR)}</p><i></i><h2>${esc(t)}</h2><p style="margin-top:3cqw">Dokumentasi</p></div>`;
+const face=(o,i,side)=>`<div class="face ${side}">${o.html}${o.bare?'':`<div class="foot"><span>${i}</span><span class="my">${o.month?esc(o.month)+' '+esc(YEAR)+(o.sec?' \u00b7 '+esc(o.sec):''):''}</span></div>`}</div>`;
 const stage=document.querySelector('.stage'),book=document.getElementById('book');
 let N=0,page=0,half=0,els=[],hasPhotos=false;
 function build(pgs){
   book.innerHTML='';els=[];page=0;half=0;
   const all=[{html:cover,bare:1}];
-  let lastM='';
+  let lastM='',lastS='';
   pgs.forEach(p=>{
-    if(p.month!==lastM){all.push({html:divider(p.month),bare:1});lastM=p.month}
-    all.push({html:body(p),month:p.month});
+    if(p.month!==lastM){all.push({html:divider(p.month),bare:1});lastM=p.month;lastS=''}
+    if(p.sec!==lastS){all.push({html:secDivider(p.month,p.sec),bare:1});lastS=p.sec}   /* tiap bagian (Poster, Kegiatan) dibuka dengan halaman pembatas */
+    all.push({html:body(p),month:p.month,sec:p.sec});
   });
   if(all.length%2===0)all.push({html:'<div class="pg"></div>'});
   all.push({html:endc,bare:1});
@@ -216,41 +218,55 @@ async function getManifest(){
     repo=seg&&!/\.html?$/i.test(seg)?seg:host;
   }
   try{
-    const root=await ghJson(`https://api.github.com/repos/${owner}/${repo}/contents/`);
-    const pd=root.find(x=>x.type==='dir'&&['foto','fotos','photo','photos'].includes(x.name.toLowerCase()));
-    const folders=(pd?await ghJson(pd.url):root).filter(x=>x.type==='dir'&&monthIdx(x.name)>=0);
-    if(!folders.length){note=pd?`tidak ada folder bulan (Januari, Februari, dst.) di dalam "${pd.name}"`:'folder "foto" tidak ditemukan di repository';return null}
-    const dirs={};
-    await Promise.all(folders.map(async d=>{
-      const f=await ghJson(d.url);
-      const names=f.filter(x=>x.type==='file'&&IMG_RE.test(x.name)).map(x=>x.name);
-      if(names.length)dirs[d.name]=names;
-    }));
-    if(!Object.keys(dirs).length){note='folder bulan ada, tapi belum berisi gambar (jpg/png/webp)';return null}
-    return {base:pd?pd.name:'',dirs};
+    /* 1 panggilan saja: ambil seluruh daftar file repository (termasuk subfolder seperti Januari/Kegiatan) */
+    const tree=await ghJson(`https://api.github.com/repos/${owner}/${repo}/git/trees/HEAD?recursive=1`);
+    const PD=['foto','fotos','photo','photos'];
+    const found={};   /* folder induk -> {folder bulan: [path file di dalamnya]} */
+    (tree.tree||[]).forEach(x=>{
+      if(x.type!=='blob'||!IMG_RE.test(x.path))return;
+      const seg=x.path.split('/');
+      let b=0,base='';
+      if(PD.includes(seg[0].toLowerCase())){base=seg[0];b=1}
+      if(seg.length<b+2||monthIdx(seg[b])<0)return;
+      const f=(found[base]=found[base]||{});
+      (f[seg[b]]=f[seg[b]]||[]).push(seg.slice(b+1).join('/'));
+    });
+    const bases=Object.keys(found);
+    if(!bases.length){note='belum ada gambar/video di folder bulan (contoh: Januari/Post - 05.01.2026.png)';return null}
+    const base=bases.find(k=>k!=='');
+    return base!==undefined?{base,dirs:found[base]}:{base:'',dirs:found['']};
   }catch(e){note=e.message||'gagal membaca GitHub';return null}
 }
-/* Susun semua halaman: 12 bulan, tiap bulan punya minimal 2 slot untuk SETIAP tanggal (1..akhir bulan).
-   Foto yang tanggalnya cocok (dari nama file) masuk ke slot tanggal itu; tanggal tanpa foto tetap kotak kosong. */
+/* Susun semua halaman: 12 bulan, tiap bulan terdiri dari 2 bagian: POSTER lalu KEGIATAN.
+   Tiap bagian punya minimal 2 slot untuk SETIAP tanggal (1..akhir bulan).
+   File masuk ke KEGIATAN jika ada di subfolder "Kegiatan" (mis. Januari/Kegiatan/...) atau nama filenya mengandung kata "Kegiatan";
+   selain itu masuk ke POSTER. Foto yang tanggalnya cocok (dari nama file) masuk ke slot tanggal itu; tanggal tanpa foto tetap kotak kosong. */
 const DIM=m=>new Date(+YEAR,m+1,0).getDate();
+const isKeg=f=>/kegiatan/i.test(f.name);
+function slotsFor(files,mi){
+  const byDay={},extra=[],slots=[];
+  files.slice().sort((a,b)=>dkey(a.name)-dkey(b.name)||nat(a.name,b.name)).forEach(f=>{
+    const t=parseDate(f.name);
+    if(t&&t.m===mi+1&&t.y===+YEAR)(byDay[t.d]=byDay[t.d]||[]).push(f);else extra.push(f);
+  });
+  for(let d=1;d<=DIM(mi);d++){
+    const label=d+' '+BULAN[mi]+' '+YEAR;
+    const arr=byDay[d]||[];
+    arr.forEach(f=>slots.push({src:f.src,date:label,cap:f.name}));
+    for(let k=arr.length;k<2||k%2;k++)slots.push({src:'',date:label,cap:''}); /* minimal 2 slot per tanggal, selalu genap supaya 1 pasang = 1 tanggal */
+  }
+  /* file yang tanggalnya tidak ada / tidak cocok: ditaruh setelah tanggal terakhir */
+  extra.forEach(f=>{const t=parseDate(f.name);slots.push({src:f.src,date:t?t.d+' '+BULAN[t.m-1]+' '+t.y:BULAN[mi]+' '+YEAR,cap:f.name})});
+  return slots;   /* tidak ada slot tambahan: berhenti di tanggal terakhir bulan itu */
+}
 function makePages(byMonth){
   const pgs=[];
   for(let mi=0;mi<12;mi++){
-    const byDay={},extra=[],slots=[];
-    (byMonth[mi]||[]).slice().sort((a,b)=>dkey(a.name)-dkey(b.name)||nat(a.name,b.name)).forEach(f=>{
-      const t=parseDate(f.name);
-      if(t&&t.m===mi+1&&t.y===+YEAR)(byDay[t.d]=byDay[t.d]||[]).push(f);else extra.push(f);
+    const all=byMonth[mi]||[];
+    [['Poster',all.filter(f=>!isKeg(f))],['Kegiatan',all.filter(isKeg)]].forEach(([sec,files])=>{
+      const slots=slotsFor(files,mi);
+      for(let i=0;i<slots.length;i+=16)pgs.push({month:BULAN[mi],sec,photos:slots.slice(i,i+16)});
     });
-    for(let d=1;d<=DIM(mi);d++){
-      const label=d+' '+BULAN[mi]+' '+YEAR;
-      const arr=byDay[d]||[];
-      arr.forEach(f=>slots.push({src:f.src,date:label,cap:f.name}));
-      for(let k=arr.length;k<2||k%2;k++)slots.push({src:'',date:label,cap:''}); /* minimal 2 slot per tanggal (2 post/hari), selalu genap supaya 1 baris = 1 tanggal */
-    }
-    /* foto di folder bulan ini yang tanggalnya tidak ada / tidak cocok: ditaruh setelah tanggal terakhir */
-    extra.forEach(f=>{const t=parseDate(f.name);slots.push({src:f.src,date:t?t.d+' '+BULAN[t.m-1]+' '+t.y:BULAN[mi]+' '+YEAR,cap:f.name})});
-    /* tidak ada slot tambahan: halaman terakhir bulan hanya berisi tanggal yang ada di kalender */
-    for(let i=0;i<slots.length;i+=16)pgs.push({month:BULAN[mi],photos:slots.slice(i,i+16)});
   }
   return pgs;
 }
