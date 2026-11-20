@@ -78,12 +78,19 @@ figcaption{font-weight:400}
 .cover.end .co{font-size:3.4cqw;white-space:nowrap}
 .contact{font-size:2.9cqw;line-height:1.7;color:#d3dcea;margin-top:5cqw}
 
-/* === Slot foto lebih besar & rapat (12 slot/halaman) === */
+/* === Slot foto: 4 kolom x 4 baris per halaman (16 slot), tiap tanggal = 2 slot berdampingan === */
 .pg{padding:5cqw 5cqw 0}.front .pg{padding-left:7cqw}.back .pg{padding-right:7cqw}
 .head{padding-bottom:1.5cqw;margin-bottom:2cqw}
 .head img{height:5.5cqw;width:5.5cqw}
 .photos{padding-bottom:1cqw}
 .n12{gap:.8cqw}
+.n16{grid-template-columns:1fr 1fr;grid-template-rows:repeat(4,1fr);gap:1.2cqw 3cqw}
+.pair{display:grid;grid-template-columns:1fr 1fr;grid-template-rows:auto auto;gap:.8cqw .8cqw;align-content:center;min-height:0;min-width:0}
+.pair figure{justify-content:flex-start}
+.pair figcaption{display:none}
+.pair .frame{flex:none;aspect-ratio:1/1;align-self:center;width:100%;height:auto;padding:.5cqw}
+.pair .frame img,.pair .frame .ph{object-fit:cover}
+.pair .pcap{grid-column:1/-1;text-align:center;font-weight:bold;font-size:3.2cqw;letter-spacing:.1em;text-transform:uppercase;color:var(--red);line-height:1.2}
 .n12 .frame{aspect-ratio:auto;align-self:stretch;width:100%;padding:.5cqw}
 .n12 .frame img{object-fit:contain;background:#fff}
 .n12 figcaption{padding-top:.4cqw;font-size:2cqw}
@@ -127,7 +134,16 @@ function fig(p){
   const img=p.src?`<img src="${esc(p.src)}" alt="${esc(p.cap||'')}" loading="lazy" onerror="this.outerHTML='<div class=ph></div>'">`:'<div class="ph"></div>';
   return `<figure><div class="frame">${img}</div><figcaption><b>${esc(String(p.date||'').replace(YEAR,'').trim())||'&#8203;'}</b></figcaption></figure>`;
 }
-function body(p){return `<div class="pg"><div class="head"><img src="${LOGO}" alt="">${CO}</div><div class="photos n${p.photos.length}">${p.photos.map(fig).join('')}</div></div>`}
+function pairs(ph){ /* tiap 2 slot = 1 tanggal: post 1 di kiri, post 2 di kanan, satu label tanggal di bawahnya */
+  let h='';
+  for(let i=0;i<ph.length;i+=2){
+    const a=ph[i],b=ph[i+1]||{src:'',date:'',cap:''};
+    const d=String(a.date||b.date||'').replace(YEAR,'').trim();
+    h+=`<div class="pair">${fig(a)}${fig(b)}<div class="pcap">${esc(d)||'&#8203;'}</div></div>`;
+  }
+  return h;
+}
+function body(p){return `<div class="pg"><div class="head"><img src="${LOGO}" alt="">${CO}</div><div class="photos n16">${pairs(p.photos)}</div></div>`}
 const cover=`<div class="cover"><img class="fj" src="${LOGO}" alt="Logo"><div class="ct">${CO}<i class="ln"></i><h1>${esc(TITLE)}</h1></div><div class="yr">${esc(YEAR)}</div><div class="logos">${PARTNERS.map(q=>`<img src="${q.src}" alt="${esc(q.alt)}">`).join('<i></i>')}</div></div>`;
 const endc=`<div class="cover end"><img class="fj" src="${LOGO}" alt="Logo"><h1>Terima Kasih</h1><i class="ln"></i>${CO}<div class="contact">${esc(ADDRESS)}<br>${esc(PHONE)}<br>${esc(EMAIL)}</div></div>`;
 const divider=m=>`<div class="div"><img src="${LOGO}" alt="" style="width:14cqw;height:14cqw;margin-bottom:6cqw"><p>Dokumentasi</p><i></i><h2>${esc(m)}</h2><p style="margin-top:3cqw">${esc(YEAR)}</p></div>`;
@@ -218,12 +234,12 @@ function makePages(byMonth){
       const label=d+' '+BULAN[mi]+' '+YEAR;
       const arr=byDay[d]||[];
       arr.forEach(f=>slots.push({src:f.src,date:label,cap:f.name}));
-      for(let k=arr.length;k<2;k++)slots.push({src:'',date:label,cap:''}); /* minimal 2 slot per tanggal (2 post/hari); kalau lebih dari 2 foto, slot bertambah otomatis */
+      for(let k=arr.length;k<2||k%2;k++)slots.push({src:'',date:label,cap:''}); /* minimal 2 slot per tanggal (2 post/hari), selalu genap supaya 1 baris = 1 tanggal */
     }
     /* foto di folder bulan ini yang tanggalnya tidak ada / tidak cocok: ditaruh setelah tanggal terakhir */
     extra.forEach(f=>{const t=parseDate(f.name);slots.push({src:f.src,date:t?t.d+' '+BULAN[t.m-1]+' '+t.y:BULAN[mi]+' '+YEAR,cap:f.name})});
-    while(slots.length%12)slots.push({src:'',date:'',cap:''});
-    for(let i=0;i<slots.length;i+=12)pgs.push({month:BULAN[mi],photos:slots.slice(i,i+12)});
+    /* tidak ada slot tambahan: halaman terakhir bulan hanya berisi tanggal yang ada di kalender */
+    for(let i=0;i<slots.length;i+=16)pgs.push({month:BULAN[mi],photos:slots.slice(i,i+16)});
   }
   return pgs;
 }
@@ -334,7 +350,10 @@ window.addEventListener('keydown',e=>{
   if(e.key==='ArrowLeft'||e.key==='ArrowRight')e.stopPropagation();
 },true);
 
-build(makePages({}));loadPhotos();
+/* PREVIEW: album kosong (tanpa foto), langsung buka halaman slot */
+hasPhotos=true;
+build(makePages({}));
+nextP();
 </script>
 </body>
 </html>
