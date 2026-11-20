@@ -187,7 +187,7 @@ const dkey=n=>{const t=parseDate(n);return t?t.y*10000+t.m*100+t.d:Infinity};
 /* Jika situs memakai domain sendiri (bukan xxx.github.io), isi manual: const GH={owner:'namaakun',repo:'namarepo'} */
 const GH={owner:'',repo:''};
 const MONTH_EN=['january','february','march','april','may','june','july','august','september','october','november','december'];
-const monthIdx=n=>{n=n.toLowerCase();let i=BULAN.findIndex(m=>n.includes(m.toLowerCase()));return i>=0?i:MONTH_EN.findIndex(m=>n.includes(m))};
+const monthIdx=n=>{n=n.toLowerCase().replace('febuari','februari');let i=BULAN.findIndex(m=>n.includes(m.toLowerCase()));return i>=0?i:MONTH_EN.findIndex(m=>n.includes(m))}; /* ejaan "Febuari" juga dikenali */
 let note='';
 async function ghJson(u){
   const r=await fetch(u);
@@ -350,10 +350,7 @@ window.addEventListener('keydown',e=>{
   if(e.key==='ArrowLeft'||e.key==='ArrowRight')e.stopPropagation();
 },true);
 
-/* PREVIEW: album kosong (tanpa foto), langsung buka halaman slot */
-hasPhotos=true;
-build(makePages({}));
-nextP();
+build(makePages({}));loadPhotos();
 </script>
 </body>
 </html>
