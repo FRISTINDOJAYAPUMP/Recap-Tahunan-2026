@@ -98,6 +98,10 @@ figcaption{font-weight:400}
 .foot{margin:0 5cqw;padding:1.4cqw 0 2.4cqw}
 .front .foot{margin-left:7cqw}.back .foot{margin-right:7cqw}
 
+/* video di slot */
+.frame{position:relative}
+.frame video{width:100%;height:100%;object-fit:cover;display:block;pointer-events:none;background:#000}
+.frame .vb{position:absolute;left:50%;top:50%;width:32%;aspect-ratio:1;transform:translate(-50%,-50%);border-radius:50%;background:rgba(0,0,0,.55);color:#fff;font-style:normal;font-size:2.6cqw;display:flex;align-items:center;justify-content:center;padding-left:.25em;pointer-events:none;box-shadow:0 0 0 .3cqw rgba(255,255,255,.8)}
 /* === Zoom frame: klik slot -> membesar ke tengah (berisi foto kalau ada, kosong kalau belum) === */
 .frame{cursor:zoom-in}
 .lb{position:fixed;inset:0;z-index:1000;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:rgba(5,15,30,0);-webkit-backdrop-filter:blur(0);backdrop-filter:blur(0);visibility:hidden;cursor:zoom-out;transition:background .35s,backdrop-filter .35s,visibility 0s .4s}
@@ -105,6 +109,7 @@ figcaption{font-weight:400}
 .lb .lbf{box-sizing:border-box;background:#fff;padding:10px;border-radius:4px;box-shadow:0 20px 60px rgba(0,0,0,.65),0 0 0 2px rgba(255,255,255,.7);transition:transform .45s cubic-bezier(.2,.8,.2,1)}
 .lb .lbf img,.lb .lbf .ph{width:100%;height:100%;display:block}
 .lb .lbf img{object-fit:contain}
+.lb .lbf video{width:100%;height:100%;display:block;object-fit:contain;background:#000}
 .lb .cap{color:#fff;font-family:var(--font-head);font-size:clamp(14px,2.4vw,20px);letter-spacing:.06em;opacity:0;transition:opacity .3s;min-height:1.2em}
 .lb.on .cap{opacity:1;transition-delay:.25s}
 .lb .x{position:absolute;top:calc(14px + env(safe-area-inset-top,0px));right:14px;width:42px;height:42px;padding:0;border-radius:50%;font-size:20px;line-height:1}
@@ -123,15 +128,21 @@ const ADDRESS='Alamat perusahaan Anda',PHONE='Telepon: 021-0000-0000',EMAIL='inf
 /* Logo ada di folder yang sama dengan index.html (nama file harus persis sama, termasuk huruf besar/kecil) */
 const LOGO=encodeURI('FJ Logo.png');
 const PARTNERS=[
-  {src:encodeURI('Fristam Logo RGB HD.PNG'),alt:'Fristam'},
-  {src:encodeURI('Logo Fristam Hijau.png'),alt:'Fristam Mixing & Blending Experts'},
-  {src:encodeURI('Logo Fluivac.png'),alt:'Fluivac'}
+  {src:encodeURI('Fristam Pumps.png'),alt:'Fristam Pumps'},
+  {src:encodeURI('Fristam Mixing.png'),alt:'Fristam Mixing'},
+  {src:encodeURI('Fluivac.png'),alt:'Fluivac'}
 ];
 const BULAN=['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
+const VID_RE=/\.(mp4|m4v|mov|webm)(\?|#|$)/i;
 const esc=s=>String(s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
 const CO=`<span class="co">${esc(COMPANY)}</span>`;
 function fig(p){
-  const img=p.src?`<img src="${esc(p.src)}" alt="${esc(p.cap||'')}" loading="lazy" onerror="this.outerHTML='<div class=ph></div>'">`:'<div class="ph"></div>';
+  let img='<div class="ph"></div>';
+  if(p.src){
+    img=VID_RE.test(p.src)
+      ?`<video src="${esc(p.src)}#t=0.1" muted playsinline preload="metadata" aria-label="${esc(p.cap||'')}" onerror="this.parentNode.innerHTML='<div class=ph></div>'"></video><i class="vb">&#9654;</i>`
+      :`<img src="${esc(p.src)}" alt="${esc(p.cap||'')}" loading="lazy" onerror="this.outerHTML='<div class=ph></div>'">`;
+  }
   return `<figure><div class="frame">${img}</div><figcaption><b>${esc(String(p.date||'').replace(YEAR,'').trim())||'&#8203;'}</b></figcaption></figure>`;
 }
 function pairs(ph){ /* tiap 2 slot = 1 tanggal: post 1 di kiri, post 2 di kanan, satu label tanggal di bawahnya */
@@ -170,7 +181,7 @@ function build(pgs){
   z();render();
 }
 const PHOTO_DIR='foto';
-const IMG_RE=/\.(jpe?g|png|webp|gif|avif|bmp)$/i;
+const IMG_RE=/\.(jpe?g|png|webp|gif|avif|bmp|mp4|m4v|mov|webm)$/i; /* gambar + video */
 const nat=(a,b)=>a.localeCompare(b,undefined,{numeric:true});
 /* Baca tanggal dari nama file, teks lain di nama file diabaikan.
    Format utama: HARI.BULAN.TAHUN, contoh "Fristam Visit Post - 06.07.2026.png" = 6 Juli 2026
@@ -291,9 +302,9 @@ addEventListener('resize',render);
 /* === Zoom frame: klik slot -> membesar ke tengah ala inspect item === */
 const lb=document.createElement('div');
 lb.className='lb';
-lb.innerHTML='<button class="x" aria-label="Tutup">\u2715</button><div class="lbf"><img alt=""><div class="ph"></div></div><div class="cap"></div>';
+lb.innerHTML='<button class="x" aria-label="Tutup">\u2715</button><div class="lbf"><img alt=""><video controls playsinline></video><div class="ph"></div></div><div class="cap"></div>';
 document.body.appendChild(lb);
-const lbf=lb.querySelector('.lbf'),lbImg=lbf.querySelector('img'),lbPh=lbf.querySelector('.ph'),lbCap=lb.querySelector('.cap');
+const lbf=lb.querySelector('.lbf'),lbImg=lbf.querySelector('img'),lbPh=lbf.querySelector('.ph'),lbVid=lbf.querySelector('video'),lbCap=lb.querySelector('.cap');
 let lbThumb=null;
 function fly(from){ // animasi dari posisi slot ke tengah (dan sebaliknya)
   const f=lbf.getBoundingClientRect();
@@ -305,12 +316,13 @@ function fly(from){ // animasi dari posisi slot ke tengah (dan sebaliknya)
 function openLb(frame){
   lbThumb=frame;
   const r=frame.getBoundingClientRect();
-  const im=frame.querySelector('img');
+  const im=frame.querySelector('img'),vd=frame.querySelector('video');
   const fg=frame.closest('figure'),fc=fg&&fg.querySelector('figcaption');
-  lbCap.textContent=fc?fc.textContent.replace(/\u200b/g,'').trim():'';
+  lbCap.textContent=fc?fc.textContent.replace(/​/g,'').trim():'';
   const go=()=>{
     let ratio=r.width/r.height;
     if(im&&im.naturalWidth)ratio=im.naturalWidth/im.naturalHeight;
+    if(vd&&vd.videoWidth)ratio=vd.videoWidth/vd.videoHeight;
     const w=Math.min(innerWidth*.92,innerHeight*.74*ratio),h=w/ratio;
     lbf.style.width=w+'px';lbf.style.height=h+'px';
     lbf.style.transition='none';
@@ -320,21 +332,30 @@ function openLb(frame){
     lb.classList.add('on');
     lbf.style.transition='';
     lbf.style.transform='none';
+    if(vd){const pl=lbVid.play();if(pl&&pl.catch)pl.catch(()=>{});}   // video langsung diputar
   };
+  lbVid.pause();
+  lbImg.style.display='none';lbPh.style.display='none';lbVid.style.display='none';
   if(im){
-    lbImg.style.display='block';lbPh.style.display='none';
+    lbImg.style.display='block';
     lbImg.src=im.currentSrc||im.src;
     lbImg.decode?lbImg.decode().then(go,go):go();
+  }else if(vd){
+    lbVid.style.display='block';
+    lbVid.src=(vd.currentSrc||vd.src).split('#')[0];
+    go();
   }else{
-    lbImg.style.display='none';lbPh.style.display='block';lbImg.removeAttribute('src');
+    lbPh.style.display='block';lbImg.removeAttribute('src');
     go();
   }
 }
 function closeLb(){
   if(!lb.classList.contains('on'))return;
+  lbVid.pause();
   lb.classList.remove('on');
   if(lbThumb&&document.contains(lbThumb))lbf.style.transform=fly(lbThumb.getBoundingClientRect());
 }
+lbVid.addEventListener('click',e=>e.stopPropagation());   // klik kontrol video tidak menutup zoom
 lb.addEventListener('click',closeLb);
 /* klik slot di album (berisi foto atau masih kosong) -> buka zoom, tidak ikut membalik halaman */
 book.addEventListener('click',e=>{
